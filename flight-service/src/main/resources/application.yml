@@ -1,0 +1,36 @@
+server:
+  port: ${HTTP_PORT:8081}
+spring:
+  application:
+    name: flight-service
+  datasource:
+    url: ${FLIGHT_DB_URL:jdbc:postgresql://localhost:5433/flights}
+    username: ${FLIGHT_DB_USER:flight}
+    password: ${FLIGHT_DB_PASSWORD:flight}
+    hikari:
+      maximum-pool-size: 12
+      connection-timeout: 3000
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      connect-timeout: 500ms
+      timeout: 500ms
+      lettuce:
+        shutdown-timeout: 100ms
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  health:
+    redis:
+      enabled: false
+flight:
+  grpc-port: ${GRPC_PORT:9090}
+  api-key: ${GRPC_API_KEY}
+  cache-ttl-seconds: ${CACHE_TTL_SECONDS:300}
