@@ -9,7 +9,7 @@ services:
     ports: ["127.0.0.1:${FLIGHT_DB_PORT:-55441}:5432"]
     volumes: ["flight-pg-data:/var/lib/postgresql/data"]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U flight -d flights"]
+      test: ["CMD", "pg_isready", "-U", "flight", "-d", "flights"]
       interval: 2s
       timeout: 2s
       retries: 30
@@ -22,7 +22,7 @@ services:
     ports: ["127.0.0.1:${BOOKING_DB_PORT:-55442}:5432"]
     volumes: ["booking-pg:/var/lib/postgresql/data"]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U booking -d bookings"]
+      test: ["CMD", "pg_isready", "-U", "booking", "-d", "bookings"]
       interval: 2s
       timeout: 2s
       retries: 30
@@ -43,11 +43,7 @@ services:
       redis-master: {condition: service_healthy}
     healthcheck: *redis-health
   sentinel-1: &sentinel
-    image: docker.io/library/redis:7.4
-    entrypoint: ["/bin/sh", "/etc/redis/start-sentinel.sh"]
-    volumes: ["./infra/start-sentinel.sh:/etc/redis/start-sentinel.sh:ro"]
-    environment:
-      SENTINEL_HOST: sentinel-1
+    build: {context: ./infra, dockerfile: Sentinel.Containerfile}
     depends_on:
       redis-master: {condition: service_healthy}
       redis-replica: {condition: service_healthy}
@@ -58,12 +54,8 @@ services:
       retries: 30
   sentinel-2:
     <<: *sentinel
-    environment:
-      SENTINEL_HOST: sentinel-2
   sentinel-3:
     <<: *sentinel
-    environment:
-      SENTINEL_HOST: sentinel-3
   flight-service:
     build: {context: ., dockerfile: Containerfile, target: flight}
     environment:
