@@ -1,0 +1,48 @@
+@baseUrl = http://localhost:8080
+@flightId = 11111111-1111-1111-1111-111111111111
+@bookingId = replace-with-created-booking-id
+
+### Готовность Booking Service
+GET {{baseUrl}}/actuator/health
+
+### Поиск без ограничения по дню: демонстрационная дата зависит от первого запуска
+GET {{baseUrl}}/flights?origin=SVO&destination=LED
+
+### Информация о рейсе
+GET {{baseUrl}}/flights/{{flightId}}
+
+### Создание бронирования: 2 места, стоимость в копейках
+POST {{baseUrl}}/bookings
+Content-Type: application/json
+
+{
+  "user_id": "demo-user",
+  "flight_id": "{{flightId}}",
+  "passenger_name": "Иван Иванов",
+  "passenger_email": "ivan@example.com",
+  "seat_count": 2
+}
+
+### Подставьте id из результата POST /bookings в переменную bookingId
+GET {{baseUrl}}/bookings/{{bookingId}}
+
+### Бронирования пользователя
+GET {{baseUrl}}/bookings?user_id=demo-user
+
+### Отмена возвращает места ровно один раз
+POST {{baseUrl}}/bookings/{{bookingId}}/cancel
+
+### Невалидное количество мест
+POST {{baseUrl}}/bookings
+Content-Type: application/json
+
+{
+  "user_id": "demo-user",
+  "flight_id": "{{flightId}}",
+  "passenger_name": "Иван Иванов",
+  "passenger_email": "ivan@example.com",
+  "seat_count": 0
+}
+
+### Отсутствующий рейс
+GET {{baseUrl}}/flights/00000000-0000-0000-0000-000000000000
