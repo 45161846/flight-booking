@@ -2,7 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 # Tests use dedicated databases; never point these variables at a production database.
-./scripts/podman.sh up -d flight-db booking-db redis-master redis-replica sentinel-1 sentinel-2 sentinel-3
+./scripts/podman.sh up -d --build
 if [[ -f .env ]]; then set -a; source .env; set +a; fi
 for service in flight booking; do
   container="$(podman ps -q --filter "label=com.docker.compose.project=${COMPOSE_PROJECT_NAME:-flight-booking}" --filter "label=com.docker.compose.service=$service-db")"
@@ -22,5 +22,4 @@ export BOOKING_TEST_DB_URL="jdbc:postgresql://localhost:${BOOKING_DB_PORT:-55442
 export BOOKING_TEST_DB_USER=booking
 export BOOKING_TEST_DB_PASSWORD="${BOOKING_DB_PASSWORD:-booking-local}"
 ./gradlew test --rerun-tasks --no-daemon --max-workers=2
-./scripts/podman.sh up -d --build
 BASE_URL="http://localhost:${BOOKING_HTTP_PORT:-8080}" python3 scripts/smoke.py
