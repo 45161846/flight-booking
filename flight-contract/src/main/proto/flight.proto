@@ -1,0 +1,78 @@
+syntax = "proto3";
+package flight.v1;
+option java_package = "com.example.flightbooking.contract";
+option java_multiple_files = true;
+import "google/protobuf/timestamp.proto";
+
+// All methods require x-api-key metadata. INVALID_ARGUMENT: invalid inputs;
+// UNAUTHENTICATED: missing/incorrect key; UNAVAILABLE: infrastructure failure.
+service FlightService {
+  rpc SearchFlights(SearchFlightsRequest) returns (SearchFlightsResponse);
+  // NOT_FOUND if no such flight.
+  rpc GetFlight(GetFlightRequest) returns (Flight);
+  // RESOURCE_EXHAUSTED: insufficient seats. FAILED_PRECONDITION: not scheduled,
+  // changed price, released booking ID or ID reused with different parameters.
+  // Idempotent by booking_id. Availability is checked in a DB transaction.
+  rpc ReserveSeats(ReserveSeatsRequest) returns (SeatReservation);
+  // Idempotent, including unknown IDs: writes a tombstone to fence late ReserveSeats.
+  rpc ReleaseReservation(ReleaseReservationRequest) returns (ReleaseReservationResponse);
+  // Administrative operation; invalidates both flight and search caches.
+  rpc UpdateFlight(UpdateFlightRequest) returns (Flight);
+}
+enum FlightStatus {
+  FLIGHT_STATUS_UNSPECIFIED = 0;
+  SCHEDULED = 1;
+  DEPARTED = 2;
+  CANCELLED = 3;
+  COMPLETED = 4;
+}
+enum ReservationStatus {
+  RESERVATION_STATUS_UNSPECIFIED = 0;
+  ACTIVE = 1;
+  RELEASED = 2;
+  EXPIRED = 3;
+}
+message Flight {
+  string id = 1;
+  string flight_number = 2;
+  string airline_code = 3;
+  string airline_name = 4;
+  string origin = 5;
+  string destination = 6;
+  google.protobuf.Timestamp departure_time = 7;
+  google.protobuf.Timestamp arrival_time = 8;
+  int32 total_seats = 9;
+  int32 available_seats = 10;
+  // Integer kopecks, RUB. Avoid floating point money.
+  int64 price_minor = 11;
+  FlightStatus status = 12;
+}
+message SearchFlightsRequest {
+  string origin = 1;
+  string destination = 2;
+  // Optional UTC calendar day: YYYY-MM-DD. Flight timestamps use Timestamp.
+  optional string date = 3;
+}
+message SearchFlightsResponse { repeated Flight flights = 1; }
+message GetFlightRequest { string flight_id = 1; }
+message ReserveSeatsRequest {
+  string flight_id = 1;
+  int32 seat_count = 2;
+  string booking_id = 3;
+  optional int64 expected_price_minor = 4;
+}
+message SeatReservation {
+  string id = 1;
+  string flight_id = 2;
+  string booking_id = 3;
+  int32 seat_count = 4;
+  ReservationStatus status = 5;
+  int64 unit_price_minor = 6;
+}
+message ReleaseReservationRequest { string booking_id = 1; }
+message ReleaseReservationResponse { bool released = 1; }
+message UpdateFlightRequest {
+  string flight_id = 1;
+  int64 price_minor = 2;
+  FlightStatus status = 3;
+}
