@@ -66,6 +66,24 @@ class ResilienceTest {
         assertEquals(6, attempts)
     }
 
+    @Test fun `server internal failures open breaker without being retried`() {
+        for (status in listOf(Status.INTERNAL, Status.UNKNOWN, Status.DATA_LOSS)) {
+            val breaker = FlightCircuitBreaker(2, 4, 2, 1000)
+            val calls = ResilientCalls(breaker, 3, 0) { throw AssertionError("Server internal failures must not retry") }
+            var attempts = 0
+            repeat(2) {
+                val failure = assertThrows(StatusRuntimeException::class.java) {
+                    calls.execute { attempts++; throw status.asRuntimeException() }
+                }
+                assertEquals(status.code, failure.status.code)
+            }
+            assertEquals(2, attempts, status.code.name)
+            assertEquals(FlightCircuitBreaker.State.OPEN, breaker.currentState(), status.code.name)
+            assertThrows(CircuitOpenException::class.java) { calls.execute { attempts++ } }
+            assertEquals(2, attempts, status.code.name)
+        }
+    }
+
     @Test fun `business errors do not open breaker`() {
         val breaker = FlightCircuitBreaker(1, 1, 1, 1000)
         repeat(10) {

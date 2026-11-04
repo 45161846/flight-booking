@@ -75,9 +75,16 @@ services:
       HTTP_PORT: 8081
       SPRING_DATA_REDIS_SENTINEL_MASTER: flights
       SPRING_DATA_REDIS_SENTINEL_NODES: sentinel-1:26379,sentinel-2:26379,sentinel-3:26379
-      SPRING_DATA_REDIS_CONNECT_TIMEOUT: 1s
-      SPRING_DATA_REDIS_TIMEOUT: 1s
+      SPRING_DATA_REDIS_CONNECT_TIMEOUT: 200ms
+      SPRING_DATA_REDIS_TIMEOUT: 200ms
       CACHE_TTL_SECONDS: 300
+    mem_limit: 768m
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8081/actuator/health"]
+      interval: 2s
+      timeout: 2s
+      start_period: 15s
+      retries: 30
     ports:
       - "127.0.0.1:${FLIGHT_HTTP_PORT:-8081}:8081"
       - "127.0.0.1:${FLIGHT_GRPC_PORT:-9090}:9090"
@@ -103,10 +110,17 @@ services:
       CB_OPEN_DURATION_MS: ${CB_OPEN_DURATION_MS:-10000}
       CLEANUP_GRACE_MS: 30000
       CLEANUP_INTERVAL_MS: 5000
+    mem_limit: 768m
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health"]
+      interval: 2s
+      timeout: 2s
+      start_period: 15s
+      retries: 30
     ports: ["127.0.0.1:${BOOKING_HTTP_PORT:-8080}:8080"]
     depends_on:
       booking-db: {condition: service_healthy}
-      flight-service: {condition: service_started}
+      flight-service: {condition: service_healthy}
 volumes:
   flight-pg-data:
   booking-pg:

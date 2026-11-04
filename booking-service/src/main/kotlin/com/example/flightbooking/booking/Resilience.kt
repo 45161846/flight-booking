@@ -12,6 +12,10 @@ class CircuitOpenException : RuntimeException("Flight service is temporarily una
 internal fun transientFailure(error: Throwable): Boolean = Status.fromThrowable(error).code in
     setOf(Status.Code.UNAVAILABLE, Status.Code.DEADLINE_EXCEEDED)
 
+internal fun breakerFailure(error: Throwable): Boolean = Status.fromThrowable(error).code in
+    setOf(Status.Code.UNAVAILABLE, Status.Code.DEADLINE_EXCEEDED, Status.Code.INTERNAL,
+        Status.Code.UNKNOWN, Status.Code.DATA_LOSS)
+
 /** Gateway middleware. The breaker counts one logical call, after its retries finish. */
 class ResilientCalls(
     private val breaker: FlightCircuitBreaker,
@@ -72,7 +76,7 @@ class FlightCircuitBreaker(
             return result
         } catch (error: Throwable) {
             // Business failures prove reachability; they never trip the breaker.
-            complete(permit, transientFailure(error))
+            complete(permit, breakerFailure(error))
             throw error
         }
     }
