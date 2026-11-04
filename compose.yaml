@@ -1,0 +1,114 @@
+name: flight-booking
+services:
+  flight-db:
+    image: docker.io/library/postgres:17
+    environment:
+      POSTGRES_DB: flights
+      POSTGRES_USER: flight
+      POSTGRES_PASSWORD: ${FLIGHT_DB_PASSWORD:-flight-local}
+    ports: ["127.0.0.1:${FLIGHT_DB_PORT:-55441}:5432"]
+    volumes: ["flight-pg-data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U flight -d flights"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+  booking-db:
+    image: docker.io/library/postgres:17
+    environment:
+      POSTGRES_DB: bookings
+      POSTGRES_USER: booking
+      POSTGRES_PASSWORD: ${BOOKING_DB_PASSWORD:-booking-local}
+    ports: ["127.0.0.1:${BOOKING_DB_PORT:-55442}:5432"]
+    volumes: ["booking-pg:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U booking -d bookings"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+  redis-master:
+    image: docker.io/library/redis:7.4
+    command: ["redis-server", "--appendonly", "yes", "--replica-announce-ip", "redis-master"]
+    volumes: ["redis-master:/data"]
+    healthcheck: &redis-health
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+  redis-replica:
+    image: docker.io/library/redis:7.4
+    command: ["redis-server", "--replicaof", "redis-master", "6379", "--appendonly", "yes", "--replica-announce-ip", "redis-replica"]
+    volumes: ["redis-replica:/data"]
+    depends_on:
+      redis-master: {condition: service_healthy}
+    healthcheck: *redis-health
+  sentinel-1: &sentinel
+    image: docker.io/library/redis:7.4
+    entrypoint: ["/bin/sh", "/etc/redis/start-sentinel.sh"]
+    volumes: ["./infra/start-sentinel.sh:/etc/redis/start-sentinel.sh:ro"]
+    environment:
+      SENTINEL_HOST: sentinel-1
+    depends_on:
+      redis-master: {condition: service_healthy}
+      redis-replica: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "26379", "ping"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+  sentinel-2:
+    <<: *sentinel
+    environment:
+      SENTINEL_HOST: sentinel-2
+  sentinel-3:
+    <<: *sentinel
+    environment:
+      SENTINEL_HOST: sentinel-3
+  flight-service:
+    build: {context: ., dockerfile: Containerfile, target: flight}
+    environment:
+      FLIGHT_DB_URL: jdbc:postgresql://flight-db:5432/flights
+      FLIGHT_DB_USER: flight
+      FLIGHT_DB_PASSWORD: ${FLIGHT_DB_PASSWORD:-flight-local}
+      GRPC_API_KEY: ${GRPC_API_KEY:-development-only-change-me}
+      GRPC_PORT: 9090
+      HTTP_PORT: 8081
+      SPRING_DATA_REDIS_SENTINEL_MASTER: flights
+      SPRING_DATA_REDIS_SENTINEL_NODES: sentinel-1:26379,sentinel-2:26379,sentinel-3:26379
+      SPRING_DATA_REDIS_CONNECT_TIMEOUT: 1s
+      SPRING_DATA_REDIS_TIMEOUT: 1s
+      CACHE_TTL_SECONDS: 300
+    ports:
+      - "127.0.0.1:${FLIGHT_HTTP_PORT:-8081}:8081"
+      - "127.0.0.1:${FLIGHT_GRPC_PORT:-9090}:9090"
+    depends_on:
+      flight-db: {condition: service_healthy}
+      sentinel-1: {condition: service_healthy}
+      sentinel-2: {condition: service_healthy}
+      sentinel-3: {condition: service_healthy}
+  booking-service:
+    build: {context: ., dockerfile: Containerfile, target: booking}
+    environment:
+      BOOKING_DB_URL: jdbc:postgresql://booking-db:5432/bookings
+      BOOKING_DB_USER: booking
+      BOOKING_DB_PASSWORD: ${BOOKING_DB_PASSWORD:-booking-local}
+      GRPC_API_KEY: ${GRPC_API_KEY:-development-only-change-me}
+      FLIGHT_GRPC_TARGET: flight-service:9090
+      GRPC_DEADLINE_MS: ${GRPC_DEADLINE_MS:-1000}
+      GRPC_MAX_ATTEMPTS: 3
+      GRPC_RETRY_INITIAL_DELAY_MS: 100
+      CB_FAILURE_THRESHOLD: ${CB_FAILURE_THRESHOLD:-5}
+      CB_WINDOW_SIZE: ${CB_WINDOW_SIZE:-10}
+      CB_MIN_CALLS: ${CB_MIN_CALLS:-5}
+      CB_OPEN_DURATION_MS: ${CB_OPEN_DURATION_MS:-10000}
+      CLEANUP_GRACE_MS: 30000
+      CLEANUP_INTERVAL_MS: 5000
+    ports: ["127.0.0.1:${BOOKING_HTTP_PORT:-8080}:8080"]
+    depends_on:
+      booking-db: {condition: service_healthy}
+      flight-service: {condition: service_started}
+volumes:
+  flight-pg-data:
+  booking-pg:
+  redis-master:
+  redis-replica:
