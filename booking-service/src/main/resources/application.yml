@@ -1,0 +1,40 @@
+server:
+  port: ${BOOKING_HTTP_PORT:8080}
+spring:
+  application:
+    name: booking-service
+  datasource:
+    url: ${BOOKING_DB_URL:jdbc:postgresql://localhost:5434/booking}
+    username: ${BOOKING_DB_USER:booking}
+    password: ${BOOKING_DB_PASSWORD:booking}
+    hikari:
+      maximum-pool-size: 16
+  jackson:
+    property-naming-strategy: SNAKE_CASE
+    deserialization:
+      fail-on-unknown-properties: true
+  flyway:
+    enabled: true
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+booking:
+  flight-target: ${FLIGHT_GRPC_TARGET:localhost:9090}
+  api-key: ${GRPC_API_KEY}
+  deadline-ms: ${GRPC_DEADLINE_MS:1000}
+  max-attempts: ${GRPC_MAX_ATTEMPTS:3}
+  retry-delay-ms: ${GRPC_RETRY_INITIAL_DELAY_MS:100}
+  breaker:
+    failure-threshold: ${CB_FAILURE_THRESHOLD:5}
+    window-size: ${CB_WINDOW_SIZE:10}
+    min-calls: ${CB_MIN_CALLS:5}
+    open-duration-ms: ${CB_OPEN_DURATION_MS:10000}
+  cleanup:
+    grace-ms: ${CLEANUP_GRACE_MS:30000}
+    interval-ms: ${CLEANUP_INTERVAL_MS:5000}
+    batch-size: ${CLEANUP_BATCH_SIZE:20}
